@@ -1,0 +1,61 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+df_X = pd.read_csv('data_location.txt', sep='\ +', header=None, engine='python')
+df_y = pd.read_csv('data_location.txt', sep='\ +', header=None, engine='python')
+
+df_X['label'] = df_y[0].values
+
+ax = plt.axes() #specifies axes so that we can overlay the following two plots together
+
+#initial visualization for classification problem
+df_X.query('label == -1').plot.scatter(x=0, y=1, ax=ax, color='blue')
+df_X.query('label == 1').plot.scatter(x=0, y=1, ax=ax, color='red')
+plt.show() 
+
+#data for logistic regression model
+
+X_train = np.concatenate((np.ones((df_X.shape[0],1)),df_X.drop(columns=['label']).values ),axis=1) #include col of ones for bias terms
+Y_train = df_y.values
+
+def my_sigmoid(z):
+	output = 1 / (1 + np.exp(-z))
+	return output
+
+params = np.zeros((X_train.shape[1],1))
+Z = Y_train * np.dot(X_train,params)
+
+tolerance = 1e9 #initialize tolerance 
+n = 0 #track number of iterations
+params_updates = []
+while tolerance > 1e-6:
+	print("Iteration {0}".format(n))
+	Z = Y_train * np.dot(X_train,params)
+	jacobian = np.mean(((my_sigmoid(Z) - 1) * Y_train) * X_train,axis=0)
+	hessian = np.zeros((X_train.shape[1],X_train.shape[1]))
+	for i in range(hessian.shape[0]):
+		for j in range(hessian.shape[0]):
+			hessian[i,j] = np.mean((my_sigmoid(Z) * (1-my_sigmoid(Z)))[:,0] * X_train[:,i] * X_train[:,j])
+	old_params = params.copy()
+	params -= np.vstack(np.dot(np.linalg.inv(hessian),jacobian)) #np.vstack makes the array into a (n+1)-col vector
+	params_updates.append(old_params)
+	tolerance = np.sum(np.abs(old_params - params))
+	n += 1
+print("Converged after {0} iterations".format(n))
+			
+
+#separatrix curve
+
+separatrix = pd.DataFrame({0:X_train[:,1], 1:-(params[0,0] + params[1,0] * X_train[:,1])/params[2,0]})
+
+ax = plt.axes()
+df_X.query('label == -1').plot.scatter(x=0, y=1, ax=ax, color='blue')
+df_X.query('label == 1').plot.scatter(x=0, y=1, ax=ax, color='red')
+# following plots each separatrix/hyperplane for each parameter update
+for i in range(len(params_updates)):
+	y_value = -np.dot(X_train[:,0:2],params_updates[i][0:2,:])/params_updates[i][-1]
+	plt.plot(X_train[:,1], y_value, label='iter {0}'.format(i+1), lw=0.5) #lw - linewidth
+
+plt.legend(bbox_to_anchor=(1.04,1), loc="upper left") #applies legend to plot; puts legend on the UPPER LEFT of specified COORD
+plt.show()
